@@ -102,7 +102,7 @@ def finfo(dtype: paddle.dtype = None):
     if dtype is None:
         dtype = paddle.get_default_dtype()
 
-    if dtype == paddle.bfloat16:
+    if dtype == paddle.float16:
         # Numpy do not support `np.finfo(np.uint16)`, so try to construct a finfo object to fetch min value
         class BFloatFInfo:
             min = -3.3895313892515355e38

@@ -321,10 +321,10 @@ class VisionTransformer(nn.Layer):
         num_patches = self.patch_embed.num_patches
 
         self.pos_embed = self.create_parameter(
-            shape=(1, num_patches + 1, embed_dim),
-            default_initializer=zeros_)
+            shape=(1, num_patches + 1, embed_dim,),
+            default_initializer=zeros_,dtype='float32')
         self.cls_token = self.create_parameter(
-            shape=(1, 1, embed_dim), default_initializer=zeros_)
+            shape=(1, 1, embed_dim), default_initializer=zeros_,dtype='float32')
         self.add_parameter("cls_token", self.cls_token)
 
         self.add_parameter("pos_embed", self.pos_embed)
@@ -379,7 +379,6 @@ class VisionTransformer(nn.Layer):
                                                       'rel_pos_bias') else None
         for blk in self.blocks:
             x = blk(x, rel_pos_bias=rel_pos_bias)
-        #x = self.norm(x)
         return x
 
     def forward(self, x):
@@ -388,12 +387,12 @@ class VisionTransformer(nn.Layer):
 
 
 def interpolate_pos_embed(model, checkpoint_model):
-    if 'visual_encoder.pos_embed' in checkpoint_model:
-        pos_embed_checkpoint = checkpoint_model['visual_encoder.pos_embed']
+    if 'pos_embed' in checkpoint_model:
+        pos_embed_checkpoint = checkpoint_model['pos_embed']
         embedding_size = pos_embed_checkpoint.shape[-1]
         print(dir(model))
-        num_patches = model.visual_encoder.patch_embed.num_patches
-        num_extra_tokens = model.visual_encoder.pos_embed.shape[-2] - num_patches
+        num_patches = model.patch_embed.num_patches
+        num_extra_tokens = model.pos_embed.shape[-2] - num_patches
         # height (== width) for the checkpoint position embedding
         orig_size = int((pos_embed_checkpoint.shape[-2] - num_extra_tokens) ** 0.5)
         # height (== width) for the new position embedding
@@ -409,24 +408,24 @@ def interpolate_pos_embed(model, checkpoint_model):
                 pos_tokens, size=(new_size, new_size), mode='bicubic', align_corners=False)
             pos_tokens = pos_tokens.transpose((0, 2, 3, 1)).flatten(1, 2)
             new_pos_embed = paddle.concat((extra_tokens, pos_tokens), axis=1)
-            checkpoint_model['visual_encoder.pos_embed'] = new_pos_embed
+            checkpoint_model['pos_embed'] = new_pos_embed
 
-def convert_weights_to_fp16(model: nn.Layer):
-    """Convert applicable model parameters to fp16"""
+# def convert_weights_to_fp16(model: nn.Layer):
+#     """Convert applicable model parameters to fp16"""
 
-    def _convert_weights_to_fp16(l):
-        if isinstance(l, (nn.Conv1D, nn.Conv2D, nn.Linear)):
-            l.weight = l.weight.cast(l.weight, 'float16')
-            if l.bias is not None:
-                l.bias = l.weight.cast(l.weight, 'float16')
+#     def _convert_weights_to_fp16(l):
+#         if isinstance(l, (nn.Conv1D, nn.Conv2D, nn.Linear)):
+#             l.weight = l.weight.cast(l.weight, 'float16')
+#             if l.bias is not None:
+#                 l.bias = l.weight.cast(l.weight, 'float16')
 
-#         if isinstance(l, (nn.MultiheadAttention, Attention)):
-#             for attr in [*[f"{s}_proj_weight" for s in ["in", "q", "k", "v"]], "in_proj_bias", "bias_k", "bias_v"]:
-#                 tensor = getattr(l, attr)
-#                 if tensor is not None:
-#                     tensor.data = tensor.data.half()
+# #         if isinstance(l, (nn.MultiheadAttention, Attention)):
+# #             for attr in [*[f"{s}_proj_weight" for s in ["in", "q", "k", "v"]], "in_proj_bias", "bias_k", "bias_v"]:
+# #                 tensor = getattr(l, attr)
+# #                 if tensor is not None:
+# #                     tensor.data = tensor.data.half()
 
-    model.apply(_convert_weights_to_fp16)
+    # model.apply(_convert_weights_to_fp16)
     
 def create_eva_vit_g(img_size=224,drop_path_rate=0.4,pretrained=False,precision="fp16"):
     model = VisionTransformer(
@@ -440,7 +439,13 @@ def create_eva_vit_g(img_size=224,drop_path_rate=0.4,pretrained=False,precision=
         drop_rate=drop_path_rate,
         epsilon=1e-6
     )
-    
+    state_dict = paddle.load("blip2_stage1_pretrain.pdparams")  
+    model_stae_dict={}
+    for  name,value in  state_dict.items():
+        if  'visual_encoder' in name:
+            model_stae_dict[name[15:]]=value
+    interpolate_pos_embed(model,model_stae_dict)
+    model.set_state_dict(model_stae_dict)
 #     if precision == "fp16":
 # #         model.to("cuda") 
 #         convert_weights_to_fp16(model)

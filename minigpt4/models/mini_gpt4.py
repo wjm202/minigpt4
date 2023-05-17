@@ -1,3 +1,4 @@
+
 import paddle
 import logging
 import random
@@ -15,7 +16,7 @@ class MiniGPT4(Blip2Base):
     PRETRAINED_MODEL_CONFIG_DICT = {'pretrain_vicuna':
         'configs/models/minigpt4.yaml'}
 
-    def __init__(self, vit_model='eva_clip_g', q_former_model='/paddle/blip2_pretrained.pdparams',
+    def __init__(self, vit_model='eva_clip_g', q_former_model='blip2_pretrained_flant5xxl.pdparams',
         img_size=224, drop_path_rate=0, use_grad_checkpoint=False,
         vit_precision='fp16', freeze_vit=True, freeze_qformer=True,
         num_query_token=32, llama_model='', prompt_path='', prompt_template
@@ -41,13 +42,14 @@ class MiniGPT4(Blip2Base):
         print('Loading Q-Former')
         self.Qformer, self.query_tokens = self.init_Qformer(num_query_token,
             self.visual_encoder.num_features)
+        import numpy as np
         self.Qformer.cls = None
         self.Qformer.bert.embeddings.word_embeddings = None
         self.Qformer.bert.embeddings.position_embeddings = None
         for layer in self.Qformer.bert.encoder.layer:
             layer.output = None
             layer.intermediate = None
-        self.load_from_pretrained(url_or_filename=q_former_model)
+        self.load_from_pretrained(url_or_filename='blip2_pretrained.pdparams')
         if freeze_qformer:
             for name, param in self.Qformer.named_parameters():
                 param.stop_gradient = not False
@@ -55,18 +57,19 @@ class MiniGPT4(Blip2Base):
             self.Qformer.train = disabled_train
             self.query_tokens.stop_gradient = not False
             logging.info('freeze Qformer')
+        
         print('Loading Q-Former Done')
         print('Loading LLAMA')
-        with paddle.amp.auto_cast():
-            self.llama_tokenizer = LlamaTokenizer.from_pretrained("facebook/llama-7b")
-            self.llama_tokenizer.pad_token = self.llama_tokenizer.eos_token
 
-            self.llama_model = LlamaForCausalLM.from_pretrained("facebook/vicuna-7b")
-            for name, param in self.llama_model.named_parameters():
-                param.stop_gradient = not False
+        # self.llama_tokenizer = LlamaTokenizer.from_pretrained("facebook/llama-7b",dtype='float16')
+        # self.llama_tokenizer.pad_token = self.llama_tokenizer.eos_token
+        # self.llama_model = LlamaForCausalLM.from_pretrained('/paddle/MiniGPT-4/vicuna-7b',dtype='float32')
+        # for name, param in self.llama_model.named_parameters():
+        #     param.stop_gradient = not False
         print('Loading LLAMA Done')
-        self.llama_proj = paddle.nn.Linear(in_features=self.Qformer.config.
-            hidden_size, out_features=self.llama_model.config.hidden_size)
+        # self.llama_proj = paddle.nn.Linear(in_features=self.Qformer.config.
+        #     hidden_size, out_features=self.llama_model.config.hidden_size)
+        self.llama_proj = paddle.nn.Linear(in_features=768, out_features=4096)
         self.max_txt_len = max_txt_len
         self.end_sym = end_sym
         if prompt_path:
@@ -82,86 +85,22 @@ class MiniGPT4(Blip2Base):
         else:
             self.prompt_list = []
 
-    def vit_to_cpu(self):
-        if isinstance('cpu', paddle.dtype):
-            dtype = 'cpu'
-        elif isinstance('cpu', str) and 'cpu' not in ['cpu', 'gpu', 'ipu',
-            'xpu']:
-            dtype = 'cpu'
-        elif isinstance('cpu', paddle.Tensor):
-            dtype = 'cpu'.dtype
-        else:
-            dtype = self.ln_vision.dtype
-        self.ln_vision.cast(dtype)
-        self.ln_vision.astype(dtype='float32')
-        if isinstance('cpu', paddle.dtype):
-            dtype = 'cpu'
-        elif isinstance('cpu', str) and 'cpu' not in ['cpu', 'gpu', 'ipu',
-            'xpu']:
-            dtype = 'cpu'
-        elif isinstance('cpu', paddle.Tensor):
-            dtype = 'cpu'.dtype
-        else:
-            dtype = self.visual_encoder.dtype
-        self.visual_encoder.cast(dtype)
-        self.visual_encoder.astype(dtype='float32')
-
     def encode_img(self, image):
-        device = image.place
-        if self.low_resource:
-            self.vit_to_cpu()
-            if isinstance('cpu', paddle.dtype):
-                dtype = 'cpu'
-            elif isinstance('cpu', str) and 'cpu' not in ['cpu', 'gpu',
-                'ipu', 'xpu']:
-                dtype = 'cpu'
-            elif isinstance('cpu', paddle.Tensor):
-                dtype = 'cpu'.dtype
-            else:
-                dtype = image.dtype
-            image = image.cast(dtype)
-        with self.maybe_autocast():
-            if isinstance(device, paddle.dtype):
-                dtype = device
-            elif isinstance(device, str) and device not in ['cpu', 'gpu',
-                'ipu', 'xpu']:
-                dtype = device
-            elif isinstance(device, paddle.Tensor):
-                dtype = device.dtype
-            else:
-                dtype = self.ln_vision(self.visual_encoder(image)).dtype
-            image_embeds = self.ln_vision(self.visual_encoder(image)).cast(
-                dtype)
-            if isinstance(device, paddle.dtype):
-                dtype = device
-            elif isinstance(device, str) and device not in ['cpu', 'gpu',
-                'ipu', 'xpu']:
-                dtype = device
-            elif isinstance(device, paddle.Tensor):
-                dtype = device.dtype
-            else:
-                dtype = paddle.ones(shape=image_embeds.shape[:-1], dtype=
-                    'int64').dtype
-            image_atts = paddle.ones(shape=image_embeds.shape[:-1], dtype=
-                'int64').cast(dtype)
-            query_tokens = self.query_tokens.expand(shape=[image_embeds.
-                shape[0], -1, -1])
-            query_output = self.Qformer.bert(query_embeds=query_tokens,
-                encoder_hidden_states=image_embeds, encoder_attention_mask=
-                image_atts, return_dict=True)
-            inputs_llama = self.llama_proj(query_output.last_hidden_state)
-            if isinstance(image.place, paddle.dtype):
-                dtype = image.place
-            elif isinstance(image.place, str) and image.place not in ['cpu',
-                 'gpu', 'ipu', 'xpu']:
-                dtype = image.place
-            elif isinstance(image.place, paddle.Tensor):
-                dtype = image.place.dtype
-            else:
-                dtype = paddle.ones(shape=inputs_llama.shape[:-1], dtype=
-                    'int64').dtype
-            atts_llama = paddle.ones(shape=inputs_llama.shape[:-1], dtype=
-                'int64').cast(dtype)
+        # with self.maybe_autocast():
+        image_embeds = self.ln_vision(self.visual_encoder(image))
+        image_atts = paddle.ones(shape=image_embeds.shape[:-1], dtype=
+            'int64')
+        import numpy as np
+        # image_embeds=paddle.to_tensor(np.load('/paddle/MiniGPT-4/image_embeds.npy'))
+        query_tokens = self.query_tokens.expand(shape=[image_embeds.
+            shape[0], -1, -1])
+        # query_tokens=paddle.to_tensor(np.load('/paddle/MiniGPT-4/query_tokens.npy'))
+        query_output = self.Qformer.bert(query_embeds=query_tokens,
+            encoder_hidden_states=image_embeds, encoder_attention_mask=
+            image_atts, return_dict=True)
+        inputs_llama = self.llama_proj(query_output.last_hidden_state)
+        atts_llama = paddle.ones(shape=inputs_llama.shape[:-1], dtype=
+            'int64')
         return inputs_llama, atts_llama
 
     def prompt_wrap(self, img_embeds, atts_img, prompt):
@@ -206,7 +145,9 @@ class MiniGPT4(Blip2Base):
             return img_embeds, atts_img
 
     def forward(self, samples):
-        image = samples['image']
+        import numpy as np
+        image=paddle.to_tensor(np.load('/paddle/MiniGPT-4/image.npy'))
+        # image = samples['image']
         img_embeds, atts_img = self.encode_img(image)
         if hasattr(samples, 'question_split'):
             print('VQA Batch')
@@ -295,8 +236,14 @@ class MiniGPT4(Blip2Base):
             prompt_template, max_txt_len=max_txt_len, end_sym=end_sym,
             low_resource=low_resource, device_8bit=device_8bit)
         ckpt_path = cfg.get('ckpt', '')
+        import numpy as np
+        ckpt={}
+        ckpt_minigpt4 = paddle.load(ckpt_path)
+        for name,values in ckpt_minigpt4.items():
+            if 'weight' in name:
+                ckpt[name]=values.T
         if ckpt_path:
             print('Load BLIP2-LLM Checkpoint: {}'.format(ckpt_path))
-            ckpt = paddle.load(ckpt_path)
             msg = model.set_state_dict(state_dict=ckpt)
         return model
+    #self.llama_proj.bias

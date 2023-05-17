@@ -3,9 +3,10 @@ import os
 import random
 
 import numpy as np
-import torch
-import torch.backends.cudnn as cudnn
+# import torch
+# import torch.backends.cudnn as cudnn
 import gradio as gr
+import paddle
 
 from minigpt4.common.config import Config
 from minigpt4.common.dist_utils import get_rank
@@ -35,15 +36,15 @@ def parse_args():
     return args
 
 
-def setup_seeds(config):
-    seed = config.run_cfg.seed + get_rank()
+# def setup_seeds(config):
+#     seed = config.run_cfg.seed + get_rank()
 
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
+#     random.seed(seed)
+#     np.random.seed(seed)
+#     torch.manual_seed(seed)
 
-    cudnn.benchmark = False
-    cudnn.deterministic = True
+#     cudnn.benchmark = False
+#     cudnn.deterministic = True
 
 
 # ========================================
@@ -63,6 +64,8 @@ model=model.to('gpu:{}'.format(args.gpu_id))
 vis_processor_cfg = cfg.datasets_cfg.cc_sbu_align.vis_processor.train
 vis_processor = registry.get_processor_class(vis_processor_cfg.name).from_config(vis_processor_cfg)
 chat = Chat(model, vis_processor, device='gpu:{}'.format(args.gpu_id))
+data=paddle.to_tensor([1.0])
+model(data)
 print('Initialization Finished')
 
 # ========================================

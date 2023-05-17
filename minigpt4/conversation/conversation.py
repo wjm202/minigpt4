@@ -194,26 +194,8 @@ class Chat:
         self.place = device
         self.model = model
         self.vis_processor = vis_processor
-        if isinstance(self.place, paddle.dtype):
-            dtype = self.place
-        elif isinstance(self.place, str) and self.place not in ['cpu',
-            'gpu', 'ipu', 'xpu']:
-            dtype = self.place
-        elif isinstance(self.place, paddle.Tensor):
-            dtype = self.place.dtype
-        else:
-            dtype = paddle.to_tensor(data=[835]).dtype
-        if isinstance(self.place, paddle.dtype):
-            dtype = self.place
-        elif isinstance(self.place, str) and self.place not in ['cpu',
-            'gpu', 'ipu', 'xpu']:
-            dtype = self.place
-        elif isinstance(self.place, paddle.Tensor):
-            dtype = self.place.dtype
-        else:
-            dtype = paddle.to_tensor(data=[2277, 29937]).dtype
-        stop_words_ids = [paddle.to_tensor(data=[835]).cast(dtype), paddle.
-            to_tensor(data=[2277, 29937]).cast(dtype)]
+        stop_words_ids = [paddle.to_tensor(data=[835],place=self.place ), paddle.
+            to_tensor(data=[2277, 29937],place=self.place)]
         self.stopping_criteria = StoppingCriteriaList([StoppingCriteriaSub(
             stops=stop_words_ids)])
 
@@ -255,67 +237,30 @@ class Chat:
         return output_text, output_token.cpu().numpy()
 
     def upload_img(self, image, conv, img_list):
-        if isinstance(image, str):
+        if isinstance(image, str):  # is a image path
             raw_image = Image.open(image).convert('RGB')
-            if isinstance(self.place, paddle.dtype):
-                dtype = self.place
-            elif isinstance(self.place, str) and self.place not in ['cpu',
-                'gpu', 'ipu', 'xpu']:
-                dtype = self.place
-            elif isinstance(self.place, paddle.Tensor):
-                dtype = self.place.dtype
-            else:
-                dtype = self.vis_processor(raw_image).unsqueeze(axis=0).dtype
-            image = self.vis_processor(raw_image).unsqueeze(axis=0).cast(dtype)
+            image = self.vis_processor(raw_image).unsqueeze(0)
         elif isinstance(image, Image.Image):
             raw_image = image
-            if isinstance(self.place, paddle.dtype):
-                dtype = self.place
-            elif isinstance(self.place, str) and self.place not in ['cpu',
-                'gpu', 'ipu', 'xpu']:
-                dtype = self.place
-            elif isinstance(self.place, paddle.Tensor):
-                dtype = self.place.dtype
-            else:
-                dtype = self.vis_processor(raw_image).unsqueeze(axis=0).dtype
-            image = self.vis_processor(raw_image).unsqueeze(axis=0).cast(dtype)
+            image = self.vis_processor(raw_image).unsqueeze(0)
         elif isinstance(image, paddle.Tensor):
             if len(image.shape) == 3:
-                image = image.unsqueeze(axis=0)
-            if isinstance(self.place, paddle.dtype):
-                dtype = self.place
-            elif isinstance(self.place, str) and self.place not in ['cpu',
-                'gpu', 'ipu', 'xpu']:
-                dtype = self.place
-            elif isinstance(self.place, paddle.Tensor):
-                dtype = self.place.dtype
-            else:
-                dtype = image.dtype
-            image = image.cast(dtype)
+                image = image.unsqueeze(0)
+            image = image
+
         image_emb, _ = self.model.encode_img(image)
         img_list.append(image_emb)
-        conv.append_message(conv.roles[0], '<Img><ImageHere></Img>')
-        msg = 'Received.'
+        conv.append_message(conv.roles[0], "<Img><ImageHere></Img>")
+        msg = "Received."
+        # self.conv.append_message(self.conv.roles[1], msg)
         return msg
 
     def get_context_emb(self, conv, img_list):
         prompt = conv.get_prompt()
-        """Class Method: *.split, not convert, please check whether it is torch.Tensor.*/Optimizer.*/nn.Module.*, and convert manually"""
         prompt_segs = prompt.split('<ImageHere>')
-        assert len(prompt_segs) == len(img_list
-            ) + 1, 'Unmatched numbers of image placeholders and images.'
-        if isinstance(self.place, paddle.dtype):
-            dtype = self.place
-        elif isinstance(self.place, str) and self.place not in ['cpu',
-            'gpu', 'ipu', 'xpu']:
-            dtype = self.place
-        elif isinstance(self.place, paddle.Tensor):
-            dtype = self.place.dtype
-        else:
-            dtype = self.model.llama_tokenizer(seg, return_tensors='pt',
-                add_special_tokens=i == 0).dtype
+        assert len(prompt_segs) == len(img_list) + 1, "Unmatched numbers of image placeholders and images."
         seg_tokens = [self.model.llama_tokenizer(seg, return_tensors='pt',
-            add_special_tokens=i == 0).cast(dtype).input_ids for i, seg in
+            add_special_tokens=i == 0).input_ids for i, seg in
             enumerate(prompt_segs)]
         seg_embs = [self.model.llama_model.model.embed_tokens(seg_t) for
             seg_t in seg_tokens]

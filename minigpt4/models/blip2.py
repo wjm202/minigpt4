@@ -32,7 +32,7 @@ class Blip2Base(BaseModel):
 
     @classmethod
     def init_Qformer(cls, num_query_token, vision_width, cross_attention_freq=2):
-        encoder_config = BertConfig.from_pretrained("bert-base-uncased")
+        encoder_config = BertConfig.from_pretrained("bert-base-uncased",dtype='float32')
         encoder_config.encoder_width = vision_width
         # insert cross-attention layer every other block
         encoder_config.add_cross_attention = True
@@ -74,12 +74,13 @@ class Blip2Base(BaseModel):
             state_dict = checkpoint["model"]
         else:
             state_dict = checkpoint
-
+        for name, params in state_dict.items():
+            state_dict[name] = params.astype('float32')
         msg = self.set_state_dict(state_dict)
 
         # logging.info("Missing keys {}".format(msg.missing_keys))
         logging.info("load checkpoint from %s" % url_or_filename)
-
+        print("load checkpoint from %s" % url_or_filename)
         return msg
 
 def disabled_train(self, mode=True):

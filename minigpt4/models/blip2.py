@@ -76,7 +76,8 @@ class Blip2Base(BaseModel):
             state_dict = checkpoint
         for name, params in state_dict.items():
             state_dict[name] = params.astype('float32')
-        msg = self.set_state_dict(state_dict)
+        
+        msg = self.set_state_dict(state_dict, use_structured_name=False)
 
         # logging.info("Missing keys {}".format(msg.missing_keys))
         logging.info("load checkpoint from %s" % url_or_filename)

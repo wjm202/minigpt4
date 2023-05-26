@@ -10,7 +10,7 @@ import paddle
 import paddle.nn as nn
 import sys
 from paddle.nn.initializer import TruncatedNormal, Constant, Normal
-
+from paddlenlp.ops import transfer_param
 
 trunc_normal_ = TruncatedNormal(std=.02)
 normal_ = Normal
@@ -410,22 +410,22 @@ def interpolate_pos_embed(model, checkpoint_model):
             new_pos_embed = paddle.concat((extra_tokens, pos_tokens), axis=1)
             checkpoint_model['pos_embed'] = new_pos_embed
 
-# def convert_weights_to_fp16(model: nn.Layer):
-#     """Convert applicable model parameters to fp16"""
+def convert_weights_to_fp16(model: nn.Layer):
+    """Convert applicable model parameters to fp16"""
 
-#     def _convert_weights_to_fp16(l):
-#         if isinstance(l, (nn.Conv1D, nn.Conv2D, nn.Linear)):
-#             l.weight = l.weight.cast(l.weight, 'float16')
-#             if l.bias is not None:
-#                 l.bias = l.weight.cast(l.weight, 'float16')
+    def _convert_weights_to_fp16(l):
+        if isinstance(l, (nn.Conv1D, nn.Conv2D, nn.Linear)):
+            l.weight = transfer_param(l.weight, restore_data=False, dtype="float16")
+            if l.bias is not None:
+                l.bias = transfer_param(l.bias, restore_data=False, dtype="float16")
 
-# #         if isinstance(l, (nn.MultiheadAttention, Attention)):
-# #             for attr in [*[f"{s}_proj_weight" for s in ["in", "q", "k", "v"]], "in_proj_bias", "bias_k", "bias_v"]:
-# #                 tensor = getattr(l, attr)
-# #                 if tensor is not None:
-# #                     tensor.data = tensor.data.half()
+        # if isinstance(l, (nn.MultiheadAttention, Attention)):
+        #     for attr in [*[f"{s}_proj_weight" for s in ["in", "q", "k", "v"]], "in_proj_bias", "bias_k", "bias_v"]:
+        #         tensor = getattr(l, attr)
+        #         if tensor is not None:
+        #             tensor.data = tensor.data.half()
 
-    # model.apply(_convert_weights_to_fp16)
+    model.apply(_convert_weights_to_fp16)
     
 def create_eva_vit_g(img_size=224,drop_path_rate=0.4,pretrained=False,precision="fp16"):
     model = VisionTransformer(
@@ -439,14 +439,13 @@ def create_eva_vit_g(img_size=224,drop_path_rate=0.4,pretrained=False,precision=
         drop_rate=drop_path_rate,
         epsilon=1e-6
     )
-    state_dict = paddle.load("blip2_stage1_pretrain.pdparams")  
+    state_dict = paddle.load("blip2_stage1_pretrain.pdparams",return_numpy=True)  
     model_stae_dict={}
     for  name,value in  state_dict.items():
         if  'visual_encoder' in name:
             model_stae_dict[name[15:]]=value
     interpolate_pos_embed(model,model_stae_dict)
     model.set_state_dict(model_stae_dict)
-#     if precision == "fp16":
-# #         model.to("cuda") 
-#         convert_weights_to_fp16(model)
+    # if precision == "fp16":
+    #     convert_weights_to_fp16(model)
     return model

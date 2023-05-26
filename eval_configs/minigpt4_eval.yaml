@@ -8,7 +8,7 @@ model:
   low_resource: False
   prompt_path: "prompts/alignment.txt"
   prompt_template: '###Human: {} ###Assistant: '
-  ckpt: '/paddle/gpt_paddle/prerained_minigpt4_7b.pdparams'
+  ckpt: '/paddle/minigpt4/prerained_minigpt4_7b.pdparams'
 datasets:
   cc_sbu_align:
     vis_processor:

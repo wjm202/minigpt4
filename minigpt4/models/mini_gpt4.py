@@ -44,7 +44,7 @@ class MiniGPT4(Blip2Base):
         print('Loading VIT Done')
         print('Loading Q-Former')
         self.Qformer, self.query_tokens = self.init_Qformer(num_query_token,
-            self.visual_encoder.num_features)
+            self.visual_encoder.num_features)#self.visual_encoder.num_features：1408
         self.Qformer.cls = None
         self.Qformer.bert.embeddings.word_embeddings = None
         self.Qformer.bert.embeddings.position_embeddings = None
@@ -87,7 +87,7 @@ class MiniGPT4(Blip2Base):
                 )
         else:
             self.prompt_list = []
-
+        
     def encode_img(self, image):
         with self.maybe_autocast():
     
@@ -131,6 +131,7 @@ class MiniGPT4(Blip2Base):
     def forward(self, samples):
         # import numpy as np
         # image=paddle.to_tensor(np.load('/paddle/MiniGPT-4/image.npy')).astype("float32")
+        samples= samples[0]
         image = samples['image']
         img_embeds, atts_img = self.encode_img(image)
         # img_embeds=paddle.to_tensor(np.load('img_embeds.npy'))
@@ -145,8 +146,8 @@ class MiniGPT4(Blip2Base):
             img_embeds, atts_img = self.prompt_wrap(img_embeds, atts_img,
                 prompt)
         self.llama_tokenizer.padding_side = 'right'
-        # text = [(t + self.end_sym) for t in samples['text_input']]
-        text = [t + self.end_sym for t in 'h']
+        text = [(t + self.end_sym) for t in samples['text_input']]
+        
         to_regress_tokens = self.llama_tokenizer(text, return_tensors='pd',
             padding='longest', truncation=True, max_length=self.max_txt_len,
             add_special_tokens=False)
@@ -215,7 +216,9 @@ class MiniGPT4(Blip2Base):
         if ckpt_path:
             print('Load BLIP2-LLM Checkpoint: {}'.format(ckpt_path))
             msg = model.set_state_dict(state_dict=ckpt)
-        model.state_dict()["llama_proj.bias"].set_value(ckpt_minigpt4["llama_proj.bias"].astype("float32"))
+            
+        llama_proj_bias={'llama_proj.bias':ckpt_minigpt4["llama_proj.bias"]}
+        model.set_state_dict(state_dict=llama_proj_bias)
         weight_Qformer=paddle.load('blip2_pretrained.pdparams',return_numpy=True)
         for name,value in weight_Qformer.items():
             if name== 'query_tokens':
@@ -231,23 +234,6 @@ class MiniGPT4(Blip2Base):
         model.set_state_dict(state_dict=lm_head_weight)
         model.set_state_dict(state_dict=ln_vision_weight)
         return model
-        # ckpt_path = cfg.get('ckpt', '')
-        # ckpt={}
-        # ckpt_minigpt4 = paddle.load(ckpt_path,return_numpy=True)
-        # ckpt['llama_proj.weight']=ckpt_minigpt4['llama_proj.weight'].T.astype("float32")
-        # ckpt['llama_proj.bias']=ckpt_minigpt4['llama_proj.bias'].astype("float32")
-        # print('Load BLIP2-LLM Checkpoint: {}'.format(ckpt_path))
-        # for name,value in  ckpt.items():
-        #     model.state_dict()[name].set_value(ckpt[name].astype("float32"))
-        # weight_Qformer=paddle.load('blip2_pretrained.pdparams',return_numpy=True)
-        # for name,value in weight_Qformer.items():
-        #     if 'Qformer' in name and ('weight' in name or 'bias' in name):
-        #         model.state_dict()[name].set_value(weight_Qformer[name].astype("float32"))
-        #     elif value.dtype=='float32':
-        #         model.state_dict()[name].set_value(weight_Qformer[name].astype("float32"))
-        #     else:
-        #         model.state_dict()[name].set_value(weight_Qformer[name])
-        # return model
     
     #self.llama_proj.bias
 def masked_fill(x, mask, value):
@@ -302,30 +288,3 @@ def convert_weights_to_dtype(model, dtype: str):
         
 
 
-        # ckpt_path = cfg.get('ckpt', '')
-        # import numpy as np
-        # ckpt={}
-        # ckpt_minigpt4 = paddle.load(ckpt_path)
-        # for name,values in ckpt_minigpt4.items():
-        #     if 'weight' in name:
-        #         ckpt[name]=values.T.astype("float16")
-        #     # else:
-        # if ckpt_path:
-        #     print('Load BLIP2-LLM Checkpoint: {}'.format(ckpt_path))
-        #     msg = model.set_state_dict(state_dict=ckpt)
-        # model.state_dict()["llama_proj.bias"].set_value(ckpt_minigpt4["llama_proj.bias"].astype("float16"))
-        # weight_Qformer=paddle.load('blip2_pretrained.pdparams',return_numpy=True)
-        # for name,value in weight_Qformer.items():
-        #     if name== 'query_tokens':
-        #         model.query_tokens.set_value(weight_Qformer[name].astype("float16"))
-        #     elif 'Qformer' in name and ('weight' in name or 'bias' in name):
-        #         model.Qformer.state_dict()[name[8:]].set_value(weight_Qformer[name].astype("float16"))
-        # lm_head_weight=paddle.load("llama_model.lm_head.weight.pdparams")
-        # lm_head_weight['llama_model.lm_head.weight']=lm_head_weight['llama_model.lm_head.weight'].astype("float16")
-        # model.set_state_dict(state_dict=lm_head_weight)
-        # ln_vision_weight=paddle.load("ln_vision.pdparams")
-        # ln_vision_weight['ln_vision.weight']=ln_vision_weight['ln_vision.weight'].astype("float16")
-        # ln_vision_weight['ln_vision.bias']=ln_vision_weight['ln_vision.bias'].astype("float16")
-        # model.set_state_dict(state_dict=lm_head_weight)
-        # model.set_state_dict(state_dict=ln_vision_weight)
-        # return model

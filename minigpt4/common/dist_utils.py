@@ -75,7 +75,7 @@ def get_dist_info():
     initialized = paddle.distributed.is_initialized()
     if initialized:
         rank = paddle.distributed.get_rank()
-        world_size = torch.distributed.get_world_size()
+        world_size = paddle.distributed.get_world_size()
     else:
         rank = 0
         world_size = 1

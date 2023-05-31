@@ -3,19 +3,11 @@ model:
   model_type: pretrain_vicuna
   freeze_vit: True
   freeze_qformer: True
+  ckpt: '/paddle/minigpt4/prerained_minigpt4_7b.pdparams'
 
 
 datasets:
-  laion:
-    vis_processor:
-      train:
-        name: "blip2_image_train"
-        image_size: 224
-    text_processor:
-      train:
-        name: "blip_caption"
-    sample_ratio: 115
-  cc_sbu:
+  coco_caption:
     vis_processor:
         train:
           name: "blip2_image_train"
@@ -23,7 +15,24 @@ datasets:
     text_processor:
         train:
           name: "blip_caption"
-    sample_ratio: 14
+  # laion:
+  #   vis_processor:
+  #     train:
+  #       name: "blip2_image_train"
+  #       image_size: 224
+  #   text_processor:
+  #     train:
+  #       name: "blip_caption"
+  #   sample_ratio: 115
+  # cc_sbu:
+  #   vis_processor:
+  #       train:
+  #         name: "blip2_image_train"
+  #         image_size: 224
+  #   text_processor:
+  #       train:
+  #         name: "blip_caption"
+  #   sample_ratio: 14
 
 
 run:
@@ -36,12 +45,12 @@ run:
 
   weight_decay: 0.05
   max_epoch: 4
-  batch_size_train: 64
-  batch_size_eval: 64
+  batch_size_train: 20
+  batch_size_eval: 20
   num_workers: 4
   warmup_steps: 5000
   iters_per_epoch: 5000
-
+  
   seed: 42
   output_dir: "output/minigpt4_stage1_pretrain"
 

@@ -10,7 +10,7 @@ import os
 import random
 
 import numpy as np
-import torch
+import paddle
 import torch.backends.cudnn as cudnn
 
 import minigpt4.tasks as tasks
@@ -30,7 +30,6 @@ from minigpt4.models import *
 from minigpt4.processors import *
 from minigpt4.runners import *
 from minigpt4.tasks import *
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Training")
@@ -56,10 +55,10 @@ def setup_seeds(config):
 
     random.seed(seed)
     np.random.seed(seed)
-    torch.manual_seed(seed)
+    paddle.seed(seed)
 
-    cudnn.benchmark = False
-    cudnn.deterministic = True
+    # cudnn.benchmark = False
+    # cudnn.deterministic = True
 
 
 def get_runner_class(cfg):
@@ -72,27 +71,18 @@ def get_runner_class(cfg):
 
 
 def main():
-    # allow auto-dl completes on main process without timeout when using NCCL backend.
-    # os.environ["NCCL_BLOCKING_WAIT"] = "1"
-
-    # set before init_distributed_mode() to ensure the same job_id shared across all ranks.
     job_id = now()
-
     cfg = Config(parse_args())
-
-    init_distributed_mode(cfg.run_cfg)
-
-    setup_seeds(cfg)
-
-    # set after init_distributed_mode() to only log on master.
-    setup_logger()
-
-    cfg.pretty_print()
-
     task = tasks.setup_task(cfg)
     datasets = task.build_datasets(cfg)
-    model = task.build_model(cfg)
-
+    setup_logger()
+    cfg.pretty_print()
+    if paddle.distributed.get_world_size() > 1:
+        paddle.distributed.init_parallel_env()
+    if paddle.distributed.get_world_size() > 1:
+        datasets = task.build_datasets(cfg)
+        model = task.build_model(cfg)
+    setup_seeds(cfg)
     runner = get_runner_class(cfg)(
         cfg=cfg, job_id=job_id, task=task, model=model, datasets=datasets
     )

@@ -65,6 +65,7 @@ class Mlp(nn.Layer):
         self.drop = nn.Dropout(drop)
 
     def forward(self, x):
+        paddle.device.cuda.empty_cache()
         x = self.fc1(x)
         x = self.act(x)
         x = self.drop(x)
@@ -144,7 +145,6 @@ class Attention(nn.Layer):
 
         attn = nn.functional.softmax(attn, axis=-1)
         attn = self.attn_drop(attn)
-
         x = (attn.matmul(v)).transpose((0, 2, 1, 3)).reshape((-1, N, C))
         x = self.proj(x)
         x = self.proj_drop(x)

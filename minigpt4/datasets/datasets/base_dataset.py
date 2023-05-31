@@ -20,8 +20,7 @@ class BaseDataset(paddle.io.Dataset):
         self.vis_root = vis_root
         self.annotation = []
         for ann_path in ann_paths:
-            self.annotation.extend(json.load(open(ann_path, 'r'))[
-                'annotations'])
+            self.annotation.extend(json.load(open(ann_path, 'r')))
         self.vis_processor = vis_processor
         self.text_processor = text_processor
         self._add_instance_ids()

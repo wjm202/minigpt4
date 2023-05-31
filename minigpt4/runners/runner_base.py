@@ -132,6 +132,12 @@ class RunnerBase:
         """
         A property to get and create learning rate scheduler by split just in need.
         """
+        self._lr_sched.iters_per_epoch=self.config.run_cfg.get("iters_per_epoch", None)
+        if self._lr_sched.iters_per_epoch is None:
+                try:
+                    self._lr_sched.iters_per_epoch = len(self.dataloaders['train'])
+                except (AttributeError, TypeError):
+                    self._lr_sched.iters_per_epoch = 10000
         return self._lr_sched
 
     @property

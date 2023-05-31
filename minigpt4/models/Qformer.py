@@ -1235,7 +1235,7 @@ class BertForMaskedLM(BertPreTrainedModel):
             return_dict=return_dict,
             is_decoder=is_decoder,
         )
-
+        
         if query_embeds is not None:
             sequence_output = outputs[0][:, query_embeds.shape[1] :, :]
         prediction_scores = self.cls(sequence_output)

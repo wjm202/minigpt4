@@ -130,10 +130,10 @@ class BaseTask:
                 break
             samples = next(data_loader)
             samples = prepare_sample(samples, cuda_enabled=cuda_enabled)
-            samples.update({'epoch': inner_epoch, 'num_iters_per_epoch':
+            samples[0].update({'epoch': inner_epoch, 'num_iters_per_epoch':
                 iters_per_epoch, 'iters': i})
             lr_scheduler.step(cur_epoch=inner_epoch, cur_step=i)
-            with paddle.cuda.amp.autocast(enabled=use_amp):
+            with paddle.amp.auto_cast(dtype='float16'):
                 loss = self.train_step(model=model, samples=samples)
             if use_amp:
                 """Class Method: *.backward, not convert, please check whether it is torch.Tensor.*/Optimizer.*/nn.Module.*, and convert manually"""
@@ -148,9 +148,9 @@ class BaseTask:
                 else:
                     optimizer.step()
                 """Class Method: *.zero_grad, not convert, please check whether it is torch.Tensor.*/Optimizer.*/nn.Module.*, and convert manually"""
-                optimizer.zero_grad()
+                optimizer.clear_grad()
             metric_logger.update(loss=loss.item())
-            metric_logger.update(lr=optimizer.param_groups[0]['lr'])
+            metric_logger.update(lr=lr_scheduler.get_lr())
         metric_logger.synchronize_between_processes()
         logging.info('Averaged stats: ' + str(metric_logger.global_avg()))
         return {k: '{:.3f}'.format(meter.global_avg) for k, meter in
